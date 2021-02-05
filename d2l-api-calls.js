@@ -8,13 +8,13 @@ const orgUnitId = ''
 const forumId = ''
 const topicId = ''
 
-export const requestHeaders = {
+const requestHeaders = {
   headers: authHeader()
 }
 
 let d2lRoute = `/d2l/api/le/${leVersion}/${orgUnitId}/discussions/forums/${forumId}/topics/${topicId}/posts/`
 
-export const postNewQuestion = async (requestBody) => {
+const postNewQuestion = async (requestBody) => {
     const requestData = {
         "ParentPostId": null,
         "Subject": requestBody.Subject, 
