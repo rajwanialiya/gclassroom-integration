@@ -12,31 +12,32 @@ const SCOPES = [
 const TOKEN_PATH = 'token.json';
 
 // Load client secrets from a local file.
-fs.readFile('credentials.json', (err, content) => {
-  if (err) return console.log('Error loading client secret file:', err);
-  
-  authorize(JSON.parse(content), listCourses);
-  authorize(JSON.parse(content), listTopics);
-  authorize(JSON.parse(content), listCourseWorkByTopicId);
-});
-
+function read() {
+  fs.readFile('credentials.json', (err, content) => {
+    if (err) return console.log('Error loading client secret file:', err);
+    google.options({auth: authorize(JSON.parse(content))});
+    // authorize(JSON.parse(content), listCourses);
+    // authorize(JSON.parse(content), listTopics);
+    // authorize(JSON.parse(content), listCourseWorkByTopicId);
+  });
+}
 
 // Create an OAuth2 client with the given credentials, and then execute callback function
-function authorize(credentials, callback) {
+function authorize(credentials) {
   const {client_secret, client_id, redirect_uris} = credentials.installed;
   const oAuth2Client = new google.auth.OAuth2(
       client_id, client_secret, redirect_uris[0]);
 
   // Check if we have previously stored a token.
   fs.readFile(TOKEN_PATH, (err, token) => {
-    if (err) return getNewToken(oAuth2Client, callback);
+    if (err) return getNewToken(oAuth2Client);
     oAuth2Client.setCredentials(JSON.parse(token));
-    callback(oAuth2Client);
+    return oAuth2Client;
   });
 }
 
 // Get new token after prompting for user auth, execute the callback with the authorized OAuth2 client
-function getNewToken(oAuth2Client, callback) {
+function getNewToken(oAuth2Client) {
   const authUrl = oAuth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
@@ -56,7 +57,6 @@ function getNewToken(oAuth2Client, callback) {
         if (err) return console.error(err);
         console.log('Token stored to', TOKEN_PATH);
       });
-      callback(oAuth2Client);
     });
   });
 }
@@ -79,6 +79,7 @@ function listCourses(auth) {
       });
       console.log(coursesList)
       console.log('\n')
+      return coursesList;
     } else {
       console.log('No courses found.');
     }
@@ -112,10 +113,11 @@ function listTopics(auth) {
 const courseWorkList = [];
 const topicId = '266571008591';
 
-function listCourseWorkByTopicId(auth) {
-  const classroom = google.classroom({version: 'v1', auth});
+// retrieve info about assignments, tests, 
+function listCourseWorkByTopicId() {
+  const classroom = google.classroom({version: 'v1'});
   classroom.courses.courseWork.list({
-    courseId: courseId
+    courseId: courseId,
   }, (err, res) => {
     if (err) return console.error('The API returned an error: ' + err);
     const courseWork = res.data.courseWork;
@@ -123,22 +125,30 @@ function listCourseWorkByTopicId(auth) {
       console.log(`Coursework for topic ${topicId}:`);
       courseWork.forEach((object) => {
         if (Object.keys(object).find(key => object[key] === topicId)) {
-
           const courseWorkMaterials = {};
+
           if (object.materials && object.materials.length) {
-            object.materials.forEach((material) => {
-              let objKey = Object.keys(material)[0]
-              let valueObject = Object.values(material)[0]
-              let values = []
-               
-              Object.entries(valueObject).forEach(pair => {
-                [key, value] = pair;
-                values.push({key:key, value:value})
+            object.materials.forEach((materialObject) => {
+              let materialType = Object.keys(materialObject)[0];
+              let materialInfo = Object.values(materialObject)[0];
+              let link = '';
+
+              Object.entries(materialInfo).forEach(info => {
+                [key, value] = info;
+                if (key === 'alternateLink' || key === 'url' || key === 'formUrl') {
+                  link = value;
+                } else if (key === 'driveFile') {
+                  Object.entries(value).forEach(driveInfo => {
+                    [key, value] = driveInfo;
+                    if (key === 'alternateLink') {
+                      link = value;
+                    }
+                  })
+                }
               })
-              courseWorkMaterials[objKey] = values
+              courseWorkMaterials[materialType] = link;
             })
           }
-
           courseWorkList.push({
             name: object.title,
             description: object.description,
@@ -157,3 +167,6 @@ function listCourseWorkByTopicId(auth) {
     }
   });
 }
+
+read();
+listCourseWorkByTopicId();
